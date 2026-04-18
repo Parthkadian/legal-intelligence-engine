@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "D:\AI Projects\legal document classifier\test_qa.py", line 5, in <module>
+    p = pipeline('question-answering', model='distilbert-base-cased-distilled-squad')
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\transformers\pipelines\__init__.py", line 747, in pipeline
+    normalized_task, targeted_task, task_options = check_task(task)
+                                                   ~~~~~~~~~~^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\transformers\pipelines\__init__.py", line 355, in check_task
+    return PIPELINE_REGISTRY.check_task(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\transformers\pipelines\base.py", line 1338, in check_task
+    raise KeyError(f"Unknown task {task}, available tasks are {self.get_supported_tasks()}")
+KeyError: "Unknown task question-answering, available tasks are ['any-to-any', 'audio-classification', 'automatic-speech-recognition', 'depth-estimation', 'document-question-answering', 'feature-extraction', 'fill-mask', 'image-classification', 'image-feature-extraction', 'image-segmentation', 'image-text-to-text', 'keypoint-matching', 'mask-generation', 'ner', 'object-detection', 'sentiment-analysis', 'table-question-answering', 'text-classification', 'text-generation', 'text-to-audio', 'text-to-speech', 'token-classification', 'video-classification', 'zero-shot-audio-classification', 'zero-shot-classification', 'zero-shot-image-classification', 'zero-shot-object-detection']"

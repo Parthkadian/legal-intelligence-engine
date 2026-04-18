@@ -1,0 +1,13 @@
+venv/
+env/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.db
+predictions.db
+.env
+.git/
+.vscode/
+.idea/

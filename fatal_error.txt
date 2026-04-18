@@ -1,0 +1,68 @@
+Traceback (most recent call last):
+  File "D:\AI Projects\legal document classifier\test_fastapi.py", line 8, in <module>
+    with TestClient(app) as client:
+         ~~~~~~~~~~^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\testclient.py", line 688, in __enter__
+    portal.call(self.wait_startup)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\anyio\from_thread.py", line 334, in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 450, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 395, in __get_result
+    raise self._exception
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\anyio\from_thread.py", line 259, in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\testclient.py", line 723, in wait_startup
+    await receive()
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\testclient.py", line 714, in receive
+    self.task.result()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 443, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 395, in __get_result
+    raise self._exception
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\anyio\from_thread.py", line 259, in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\testclient.py", line 704, in lifespan
+    await self.app(scope, self.stream_receive.receive, self.stream_send.send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\fastapi\applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\middleware\errors.py", line 151, in __call__
+    await self.app(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\middleware\cors.py", line 80, in __call__
+    await self.app(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 49, in __call__
+    await self.app(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\routing.py", line 669, in app
+    await self.lifespan(scope, receive, send)
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\starlette\routing.py", line 638, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\fastapi\routing.py", line 241, in __aenter__
+    await self._router._startup()
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\fastapi\routing.py", line 4886, in _startup
+    handler()
+    ~~~~~~~^^
+  File "D:\AI Projects\legal document classifier\api\main.py", line 84, in startup_event
+    qa_pipeline = pipeline("question-answering", model="distilbert-base-cased-distilled-squad")
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\transformers\pipelines\__init__.py", line 747, in pipeline
+    normalized_task, targeted_task, task_options = check_task(task)
+                                                   ~~~~~~~~~~^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\transformers\pipelines\__init__.py", line 355, in check_task
+    return PIPELINE_REGISTRY.check_task(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\AI Projects\legal document classifier\venv\Lib\site-packages\transformers\pipelines\base.py", line 1338, in check_task
+    raise KeyError(f"Unknown task {task}, available tasks are {self.get_supported_tasks()}")
+KeyError: "Unknown task question-answering, available tasks are ['any-to-any', 'audio-classification', 'automatic-speech-recognition', 'depth-estimation', 'document-question-answering', 'feature-extraction', 'fill-mask', 'image-classification', 'image-feature-extraction', 'image-segmentation', 'image-text-to-text', 'keypoint-matching', 'mask-generation', 'ner', 'object-detection', 'sentiment-analysis', 'table-question-answering', 'text-classification', 'text-generation', 'text-to-audio', 'text-to-speech', 'token-classification', 'video-classification', 'zero-shot-audio-classification', 'zero-shot-classification', 'zero-shot-image-classification', 'zero-shot-object-detection']"

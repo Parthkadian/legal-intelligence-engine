@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+streamlit
+requests
+torch
+transformers
+safetensors
+spacy
+pandas
+scikit-learn
+datasets
+numpy
+pydantic
+pymupdf
+fpdf2
+python-docx
+pandas
