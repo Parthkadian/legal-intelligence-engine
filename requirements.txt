@@ -5,3 +5,5 @@ numpy
 plotly
 PyMuPDF
 pdfplumber
+fpdf
+python-docx
