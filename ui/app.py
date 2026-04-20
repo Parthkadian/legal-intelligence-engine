@@ -7,21 +7,22 @@ import sys
 import re
 import json
 from datetime import datetime
-import fitz  
+import fitz
 from fpdf import FPDF
 from fpdf.enums import WrapMode
 import pandas as pd
 from docx import Document
-from docx.shared import Pt
 import io
-
 import os
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
+API_URL = os.environ.get(
+    "API_URL",
+    "https://legal-intelligence-engine.onrender.com"
+)
 
 st.set_page_config(
     page_title="Legal Document Classifier",
@@ -29,6 +30,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 if "sample_text" not in st.session_state:
     st.session_state["sample_text"] = (
         "This Agreement is entered into on 12/04/2026 between Alpha Technologies Ltd and Beta Systems Pvt Ltd "
@@ -678,10 +680,11 @@ h3 {
 </style>
 """, unsafe_allow_html=True)
 
+
 def check_api_health(retries=2, delay=0.6):
     for _ in range(retries):
         try:
-            response = requests.get(f"{API_URL}/health", timeout=4)
+            response = requests.get(f"{API_URL}/health", timeout=8)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("status") == "ok":
@@ -708,9 +711,10 @@ def get_api_status():
         return refresh_api_status()
     return cached["online"], cached["data"]
 
+
 def get_api_history():
     try:
-        response = requests.get(f"{API_URL}/history", timeout=4)
+        response = requests.get(f"{API_URL}/history", timeout=8)
         if response.status_code == 200:
             return response.json().get("history", [])
     except Exception:
@@ -720,7 +724,7 @@ def get_api_history():
 
 def predict_text(text: str):
     payload = {"text": text}
-    response = requests.post(f"{API_URL}/predict", json=payload, timeout=60)
+    response = requests.post(f"{API_URL}/predict", json=payload, timeout=120)
     response.raise_for_status()
     return response.json()
 
@@ -759,7 +763,7 @@ def highlight_keywords_in_text(text: str, explanation: list):
     if not words:
         return safe_text
 
-    pattern = r'\\b(' + "|".join(words[:12]) + r')\\b'
+    pattern = r'\b(' + "|".join(words[:12]) + r')\b'
 
     def replacer(match):
         return f"<span class='highlight-chip'>{match.group(0)}</span>"
@@ -769,34 +773,35 @@ def highlight_keywords_in_text(text: str, explanation: list):
     except Exception:
         return safe_text
 
+
 def generate_pdf_report(latest_data):
     pdf = FPDF()
     pdf.add_page()
-    
-    pdf.set_fill_color(10, 34, 64) 
+
+    pdf.set_fill_color(10, 34, 64)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", size=18, style="B")
     pdf.cell(0, 15, txt="  PREMIUM LEGAL ANALYSIS REPORT", ln=True, align='L', fill=True)
     pdf.ln(5)
-    
+
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Helvetica", size=12, style="B")
     pdf.cell(0, 10, txt=f"Risk Score: {latest_data['prediction']['risk_score']}/100", ln=True)
-    
+
     pdf.set_font("Helvetica", size=11)
     safe_summary = latest_data['summary'].replace("→", "->").replace("—", "-")
     safe_summary = safe_summary.encode('ascii', errors='ignore').decode('ascii')
-    
+
     pdf.multi_cell(0, 8, text=f"Summary: {safe_summary}", wrapmode=WrapMode.CHAR)
     pdf.ln(5)
-    
+
     pdf.set_font("Helvetica", size=12, style="B")
     pdf.cell(0, 10, txt="Clause Detection:", ln=True)
     pdf.set_font("Helvetica", size=11)
     for clause, present in latest_data['prediction']['clauses'].items():
         status = "Detected" if present else "Missing"
         pdf.cell(0, 8, txt=f"- {clause}: {status}", ln=True)
-        
+
     pdf.ln(5)
     pdf.set_font("Helvetica", size=12, style="B")
     pdf.cell(0, 10, txt="Insights:", ln=True)
@@ -806,30 +811,32 @@ def generate_pdf_report(latest_data):
         safe_ins = safe_ins.encode('ascii', errors='ignore').decode('ascii')
         pdf.multi_cell(0, 8, text=f"- {safe_ins}", wrapmode=WrapMode.CHAR)
         pdf.ln(1)
-        
+
     return pdf.output()
+
 
 def generate_docx_report(latest_data):
     doc = Document()
     doc.add_heading('Legal Risk Analysis Report', 0)
-    
+
     doc.add_heading(f"Risk Score: {latest_data['prediction']['risk_score']}/100", level=1)
-    
+
     doc.add_heading('Summary', level=2)
     doc.add_paragraph(latest_data['summary'])
-    
+
     doc.add_heading('Clause Detection', level=2)
     for clause, present in latest_data['prediction']['clauses'].items():
         status = "Detected" if present else "Missing"
         doc.add_paragraph(f"- {clause}: {status}", style='List Bullet')
-        
+
     doc.add_heading('Insights', level=2)
     for ins in latest_data['prediction']['insights']:
         doc.add_paragraph(ins, style='List Bullet')
-        
+
     io_stream = io.BytesIO()
     doc.save(io_stream)
     return io_stream.getvalue()
+
 
 def generate_csv_matrix(latest_data):
     data = {"Document Label": [latest_data['prediction']['label']]}
@@ -841,7 +848,7 @@ def generate_csv_matrix(latest_data):
 
 
 def add_to_history(text, result):
-    pass 
+    pass
 
 
 def build_summary(text: str, label: str, entities: list, clauses: dict | None = None, risk_score: int = 0) -> str:
@@ -975,6 +982,7 @@ def normalize_explanation_items(explanation):
                 normalized.append({"word": word, "score": None})
     return normalized
 
+
 if st.session_state["api_status_cache"] is None:
     refresh_api_status()
 
@@ -988,7 +996,7 @@ with st.sidebar:
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     st.selectbox("Active Workspace", ["Global Contracts HQ", "M&A Due Diligence", "HR & Employment", "Vendor Agreements"])
 
     st.markdown('<div class="sidebar-section-title">Platform Overview</div>', unsafe_allow_html=True)
@@ -1011,12 +1019,11 @@ with st.sidebar:
         st.markdown(f'<div class="sidebar-bullet">• {item}</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-section-title">Session Metrics</div>', unsafe_allow_html=True)
-    
+
     total_docs = 0
     high_risk = 0
     try:
         import sqlite3
-        from pathlib import Path
         db_path = Path(__file__).resolve().parent.parent / "predictions.db"
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
@@ -1043,6 +1050,8 @@ with st.sidebar:
     st.markdown('<div class="sidebar-section-title">API Status</div>', unsafe_allow_html=True)
     sidebar_online, _ = get_api_status()
     render_sidebar_api_status(sidebar_online)
+
+    st.markdown('<div class="api-mini-note">🔗 Connected to backend: ' + API_URL + '</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-section-title">Prediction History (DB)</div>', unsafe_allow_html=True)
     db_history = get_api_history()
@@ -1325,13 +1334,11 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
 st.markdown('<div class="section-title-main">📄 Upload PDF or Enter Legal Text</div>', unsafe_allow_html=True)
 st.markdown(
     '<div class="section-subtitle-main">Upload a legal PDF or paste legal clauses directly for full analysis.</div>',
     unsafe_allow_html=True
 )
-
 
 input_left, input_right = st.columns([1, 1.75], gap="large")
 
@@ -1352,7 +1359,7 @@ with input_left:
             st.success("PDF text extracted successfully.")
 
     st.markdown('<div class="card-gap"></div>', unsafe_allow_html=True)
-    
+
     enable_webhooks = st.toggle("🔔 Enable automated Slack Webhooks for High-Risk Alerts", value=True)
 
     predict_btn = st.button("Run Full Legal Analysis", key="run_legal_analysis")
@@ -1380,14 +1387,13 @@ with input_right:
         placeholder="Paste your contract, lease, agreement, NDA, notice, or other legal text here..."
     )
 
-
 if predict_btn:
     if not text.strip():
         st.warning("Please upload a PDF or enter legal text first.")
     else:
         online, _ = refresh_api_status()
         if not online:
-            st.error("API is offline. Start backend first with: uvicorn api.main:app --reload")
+            st.error("API is offline. Check your deployed backend connection.")
         else:
             loading_placeholder = loading_sequence()
 
@@ -1432,13 +1438,15 @@ if predict_btn:
 
                 refresh_api_status()
 
+            except requests.exceptions.Timeout:
+                loading_placeholder.empty()
+                st.error("The backend took too long to respond. First prediction can be slow while the model loads.")
             except requests.exceptions.RequestException as e:
                 loading_placeholder.empty()
                 st.error(f"API request failed: {e}")
             except Exception as e:
                 loading_placeholder.empty()
                 st.error(f"Something went wrong: {e}")
-
 
 latest = st.session_state.get("latest_result")
 
@@ -1612,7 +1620,7 @@ if latest is not None:
     with c1:
         st.markdown("### 📊 Confidence by Class")
         if probabilities:
-            st.bar_chart(probabilities, color="#D4AF37")
+            st.bar_chart(probabilities)
         else:
             st.info("No class probabilities returned.")
 
@@ -1627,11 +1635,11 @@ if latest is not None:
     st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
     st.markdown("### 📌 Advanced Extraction")
-    
+
     dates = [e for e in entities if isinstance(e, dict) and e.get("label") == "DATE"]
     money = [e for e in entities if isinstance(e, dict) and e.get("label") == "MONEY"]
     other_entities = [e for e in entities if e not in dates and e not in money]
-    
+
     if dates or money:
         c_date, c_money = st.columns(2, gap="medium")
         with c_date:
@@ -1641,7 +1649,7 @@ if latest is not None:
                     st.markdown(f"**•** {d.get('text')}")
             else:
                 st.caption("No dates extracted.")
-                
+
         with c_money:
             st.markdown("#### 💵 Monetary Values")
             if money:
@@ -1651,7 +1659,7 @@ if latest is not None:
                 st.caption("No monetary values extracted.")
     else:
         st.info("No advanced specific value extractions found.")
-        
+
     st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
     st.markdown("### 🏷️ Other Entities")
@@ -1688,7 +1696,7 @@ if latest is not None:
         <p style='color: #cbd5e1; margin-bottom: 0.5rem; font-size: 0.95rem;'>Deploy extraction outputs seamlessly into corporate workflows or download secure Risk Reports for off-platform auditing.</p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     col_d1, col_d2, col_d3, col_d4 = st.columns(4)
     with col_d1:
         st.download_button(
@@ -1708,7 +1716,7 @@ if latest is not None:
             )
         except Exception as e:
             st.error(f"PDF error: {e}")
-            
+
     with col_d3:
         try:
             docx_bytes = generate_docx_report(latest)
@@ -1720,7 +1728,7 @@ if latest is not None:
             )
         except Exception as e:
             st.error(f"DOCX error: {e}")
-            
+
     with col_d4:
         try:
             csv_bytes = generate_csv_matrix(latest)
@@ -1753,12 +1761,12 @@ if latest is not None:
             with st.spinner("Analyzing text..."):
                 try:
                     chat_payload = {"context": text, "question": prompt}
-                    chat_response = requests.post(f"{API_URL}/chat", json=chat_payload, timeout=30)
+                    chat_response = requests.post(f"{API_URL}/chat", json=chat_payload, timeout=120)
                     if chat_response.status_code == 200:
                         data = chat_response.json()
                         ans = data.get("answer", "No answer found.")
                         score = data.get("score", 0.0)
-                        
+
                         md_ans = f"**{ans}** (Confidence: {score:.2%})"
                         st.markdown(md_ans)
                         st.session_state["chat_history"].append({"role": "assistant", "content": md_ans})
@@ -1766,5 +1774,9 @@ if latest is not None:
                         err_msg = "Failed to fetch answer. Please check if the pipeline has finished loading."
                         st.error(err_msg)
                         st.session_state["chat_history"].append({"role": "assistant", "content": err_msg})
+                except requests.exceptions.Timeout:
+                    timeout_msg = "The chat request timed out. First chat call can be slow while the QA model loads."
+                    st.error(timeout_msg)
+                    st.session_state["chat_history"].append({"role": "assistant", "content": timeout_msg})
                 except Exception as e:
                     st.error(f"Error: {e}")
