@@ -1,4 +1,4 @@
-from pathlib import Path
+import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from torch.nn.functional import softmax
@@ -14,17 +14,17 @@ LABEL_MAP = {
 
 
 class LegalDocumentPredictor:
-    def __init__(self, model_dir: str | None = None):
-        project_root = Path(__file__).resolve().parent.parent
-        self.model_dir = Path(model_dir) if model_dir else project_root / "models" / "bert_model"
-
-        if not self.model_dir.exists():
-            raise FileNotFoundError(f"Model directory not found: {self.model_dir}")
+    def __init__(self, model_name: str | None = None):
+        # Use Hugging Face model repo instead of local folder
+        self.model_name = model_name or os.getenv(
+            "HF_MODEL_NAME",
+            "appster777/legal-doc-classifier"
+        )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_dir)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
         self.model.to(self.device)
         self.model.eval()
 

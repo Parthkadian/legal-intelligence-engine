@@ -20,5 +20,5 @@ predictions.db
 .idea/
 .vscode/
 
-# Ignore HuggingFace models if downloaded locally
-models/
+
+
