@@ -85,7 +85,7 @@ predictor_instance = None
 def load_predictor():
     global predictor_instance
     if predictor_instance is None:
-        logger.info("Loading classification predictor...")
+        logger.info("Lazy loading classification predictor...")
         predictor_instance = get_predictor()
         logger.info("Predictor loaded successfully.")
         logger.info("Available labels: %s", predictor_instance.labels)
@@ -113,12 +113,7 @@ def startup_event():
     try:
         init_db()
         logger.info("Database initialized successfully.")
-
-        # Load only the predictor on startup.
-        # QA model is loaded lazily when /chat is called.
-        load_predictor()
-
-        logger.info("Startup complete.")
+        logger.info("Startup complete. Heavy models will load lazily on first request.")
     except Exception as e:
         logger.exception("Startup failed: %s", e)
         raise
@@ -135,23 +130,12 @@ def root():
 
 @app.get("/health")
 def health():
-    try:
-        predictor = load_predictor()
-        return {
-            "status": "ok",
-            "model_loaded": True,
-            "num_labels": len(predictor.labels),
-            "labels": predictor.labels,
-            "qa_model_loaded": qa_model is not None
-        }
-    except Exception as e:
-        logger.exception("Health check failed: %s", e)
-        return {
-            "status": "error",
-            "model_loaded": False,
-            "error": str(e),
-            "qa_model_loaded": qa_model is not None
-        }
+    return {
+        "status": "ok",
+        "service": "alive",
+        "predictor_loaded": predictor_instance is not None,
+        "qa_model_loaded": qa_model is not None,
+    }
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -192,6 +176,7 @@ def predict(request: PredictRequest):
             expl_words = [kw for kw in identity_keywords if kw in text_lower][:3]
             if not expl_words:
                 expl_words = ["identity", "document"]
+
             explanation = [{"word": w.upper(), "score": 1.0} for w in expl_words]
 
             clauses = {}
@@ -279,6 +264,7 @@ def chat_endpoint(request: ChatRequest):
         tokenizer, model = load_qa_model()
 
         inputs = tokenizer(request.question, request.context, return_tensors="pt")
+
         with torch.no_grad():
             outputs = model(**inputs)
 
