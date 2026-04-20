@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 import sys
 
-
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
@@ -21,10 +20,9 @@ from src.risk_detector import (
     generate_insights,
     generate_business_impact,
     generate_recommendations,
-    generate_executive_summary
+    generate_executive_summary,
 )
 from api.database import init_db, save_prediction, get_history
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 import torch
 
 logging.basicConfig(
@@ -47,16 +45,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class PredictRequest(BaseModel):
     text: str
+
 
 class ChatRequest(BaseModel):
     context: str
     question: str
 
+
 class ChatResponse(BaseModel):
     answer: str
     score: float
+
 
 class PredictResponse(BaseModel):
     label: str
@@ -74,27 +76,53 @@ class PredictResponse(BaseModel):
     executive_summary: dict
     processing_time_ms: float
 
+
 qa_tokenizer = None
 qa_model = None
+predictor_instance = None
 
-@app.on_event("startup")
-def startup_event():
+
+def load_predictor():
+    global predictor_instance
+    if predictor_instance is None:
+        logger.info("Loading classification predictor...")
+        predictor_instance = get_predictor()
+        logger.info("Predictor loaded successfully.")
+        logger.info("Available labels: %s", predictor_instance.labels)
+    return predictor_instance
+
+
+def load_qa_model():
     global qa_tokenizer, qa_model
-    logger.info("Starting AI Legal Risk Intelligence API...")
-    try:
-        logger.info("Loading QA Model...")
+
+    if qa_tokenizer is None or qa_model is None:
+        logger.info("Lazy loading QA model...")
+        from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+
         model_name = "distilbert-base-cased-distilled-squad"
         qa_tokenizer = AutoTokenizer.from_pretrained(model_name)
         qa_model = AutoModelForQuestionAnswering.from_pretrained(model_name)
-        
+        logger.info("QA model loaded successfully.")
+
+    return qa_tokenizer, qa_model
+
+
+@app.on_event("startup")
+def startup_event():
+    logger.info("Starting AI Legal Risk Intelligence API...")
+    try:
         init_db()
         logger.info("Database initialized successfully.")
-        predictor = get_predictor()
-        logger.info("Model loaded successfully.")
-        logger.info("Available labels: %s", predictor.labels)
+
+        # Load only the predictor on startup.
+        # QA model is loaded lazily when /chat is called.
+        load_predictor()
+
+        logger.info("Startup complete.")
     except Exception as e:
         logger.exception("Startup failed: %s", e)
         raise
+
 
 @app.get("/")
 def root():
@@ -104,23 +132,27 @@ def root():
         "health": "/health"
     }
 
+
 @app.get("/health")
 def health():
     try:
-        predictor = get_predictor()
+        predictor = load_predictor()
         return {
             "status": "ok",
             "model_loaded": True,
             "num_labels": len(predictor.labels),
-            "labels": predictor.labels
+            "labels": predictor.labels,
+            "qa_model_loaded": qa_model is not None
         }
     except Exception as e:
         logger.exception("Health check failed: %s", e)
         return {
             "status": "error",
             "model_loaded": False,
-            "error": str(e)
+            "error": str(e),
+            "qa_model_loaded": qa_model is not None
         }
+
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: PredictRequest):
@@ -136,7 +168,16 @@ def predict(request: PredictRequest):
 
     try:
         text_lower = text.lower()
-        identity_keywords = ["aadhaar", "aadhar", "passport", "pan card", "driving license", "voter id", "identity card", "national id"]
+        identity_keywords = [
+            "aadhaar",
+            "aadhar",
+            "passport",
+            "pan card",
+            "driving license",
+            "voter id",
+            "identity card",
+            "national id",
+        ]
         is_identity_document = any(keyword in text_lower for keyword in identity_keywords)
 
         if is_identity_document:
@@ -144,16 +185,15 @@ def predict(request: PredictRequest):
                 "label": "Identity Document",
                 "confidence": 0.99,
                 "probabilities": {"Identity Document": 0.99},
-                "top_predictions": [{"label": "Identity Document", "confidence": 0.99}]
+                "top_predictions": [{"label": "Identity Document", "confidence": 0.99}],
             }
             entities = extract_entities(text)
-            
-            
+
             expl_words = [kw for kw in identity_keywords if kw in text_lower][:3]
             if not expl_words:
                 expl_words = ["identity", "document"]
             explanation = [{"word": w.upper(), "score": 1.0} for w in expl_words]
-            
+
             clauses = {}
             risk_score = 0
             risk_level = "None"
@@ -165,19 +205,15 @@ def predict(request: PredictRequest):
                 "risk_score": 0,
                 "risk_level": "None",
                 "main_concern": "Personal Data Storage",
-                "action": "Ensure secure storage of PII"
+                "action": "Ensure secure storage of PII",
             }
         else:
-            predictor = get_predictor()
-    
-            
+            predictor = load_predictor()
+
             prediction = predictor.predict(text)
-    
-            
             entities = extract_entities(text)
             explanation = explain_text(text)
-    
-            
+
             clauses = detect_clauses(text)
             risk_score = compute_risk_score(clauses)
             risk_level = get_risk_level(risk_score)
@@ -187,7 +223,7 @@ def predict(request: PredictRequest):
             executive_summary = generate_executive_summary(
                 prediction["label"],
                 risk_score,
-                clauses
+                clauses,
             )
 
         processing_time_ms = round((time.time() - start_time) * 1000, 2)
@@ -206,7 +242,7 @@ def predict(request: PredictRequest):
             "business_impact": business_impact,
             "recommendations": recommendations,
             "executive_summary": executive_summary,
-            "processing_time_ms": processing_time_ms
+            "processing_time_ms": processing_time_ms,
         }
 
         logger.info(
@@ -215,7 +251,7 @@ def predict(request: PredictRequest):
             response["confidence"],
             response["risk_score"],
             response["risk_level"],
-            response["processing_time_ms"]
+            response["processing_time_ms"],
         )
 
         save_prediction(text, response["label"], response["confidence"], response["risk_score"])
@@ -227,6 +263,7 @@ def predict(request: PredictRequest):
         logger.exception("Prediction failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
+
 @app.get("/history")
 def history_endpoint():
     try:
@@ -235,24 +272,27 @@ def history_endpoint():
         logger.exception("Fetch history failed: %s", e)
         raise HTTPException(status_code=500, detail=f"History fetch failed: {str(e)}")
 
+
 @app.post("/chat", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest):
-    if not qa_model or not qa_tokenizer:
-        raise HTTPException(status_code=503, detail="QA Model not loaded.")
     try:
-        inputs = qa_tokenizer(request.question, request.context, return_tensors="pt")
+        tokenizer, model = load_qa_model()
+
+        inputs = tokenizer(request.question, request.context, return_tensors="pt")
         with torch.no_grad():
-            outputs = qa_model(**inputs)
-        
+            outputs = model(**inputs)
+
         answer_start = torch.argmax(outputs.start_logits)
         answer_end = torch.argmax(outputs.end_logits) + 1
-        
+
         answer_tokens = inputs["input_ids"][0][answer_start:answer_end]
-        answer = qa_tokenizer.decode(answer_tokens)
-        
-        
+        answer = tokenizer.decode(answer_tokens, skip_special_tokens=True).strip()
+
+        if not answer:
+            answer = "No clear answer found in the provided context."
+
         score = 0.85
-        
+
         return {"answer": answer, "score": score}
     except Exception as e:
         logger.exception("Chat QA failed: %s", e)
