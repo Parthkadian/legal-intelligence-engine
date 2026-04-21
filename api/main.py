@@ -5,6 +5,7 @@ import logging
 import time
 from pathlib import Path
 import sys
+import torch
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -23,7 +24,6 @@ from src.risk_detector import (
     generate_executive_summary,
 )
 from api.database import init_db, save_prediction, get_history
-import torch
 
 logging.basicConfig(
     level=logging.INFO,
@@ -148,9 +148,18 @@ def predict(request: PredictRequest):
     if len(text) < 20:
         raise HTTPException(status_code=400, detail="Please enter a longer legal text.")
 
+    # Prevent Render crashes from huge extracted PDF text
+    MAX_TEXT_LEN = 3000
+    if len(text) > MAX_TEXT_LEN:
+        logger.info("Input too large, truncating from %s to %s chars", len(text), MAX_TEXT_LEN)
+        text = text[:MAX_TEXT_LEN]
+
     start_time = time.time()
 
     try:
+        logger.info("=== /predict called ===")
+        logger.info("Input length: %s", len(text))
+
         text_lower = text.lower()
         identity_keywords = [
             "aadhaar",
@@ -165,12 +174,16 @@ def predict(request: PredictRequest):
         is_identity_document = any(keyword in text_lower for keyword in identity_keywords)
 
         if is_identity_document:
+            logger.info("Identity document shortcut triggered")
+
             prediction = {
                 "label": "Identity Document",
                 "confidence": 0.99,
                 "probabilities": {"Identity Document": 0.99},
                 "top_predictions": [{"label": "Identity Document", "confidence": 0.99}],
             }
+
+            logger.info("Running entity extraction")
             entities = extract_entities(text)
 
             expl_words = [kw for kw in identity_keywords if kw in text_lower][:3]
@@ -192,19 +205,37 @@ def predict(request: PredictRequest):
                 "main_concern": "Personal Data Storage",
                 "action": "Ensure secure storage of PII",
             }
+
         else:
+            logger.info("Loading predictor")
             predictor = load_predictor()
 
+            logger.info("Running classification")
             prediction = predictor.predict(text)
+
+            logger.info("Running NER")
             entities = extract_entities(text)
+
+            logger.info("Running explanation")
             explanation = explain_text(text)
 
+            logger.info("Running clause detection")
             clauses = detect_clauses(text)
+
+            logger.info("Computing risk score")
             risk_score = compute_risk_score(clauses)
             risk_level = get_risk_level(risk_score)
+
+            logger.info("Generating insights")
             insights = generate_insights(text, clauses)
+
+            logger.info("Generating business impact")
             business_impact = generate_business_impact(risk_score, clauses)
+
+            logger.info("Generating recommendations")
             recommendations = generate_recommendations(risk_score, clauses)
+
+            logger.info("Generating executive summary")
             executive_summary = generate_executive_summary(
                 prediction["label"],
                 risk_score,
@@ -215,13 +246,13 @@ def predict(request: PredictRequest):
 
         response = {
             "label": prediction["label"],
-            "confidence": prediction["confidence"],
+            "confidence": float(prediction["confidence"]),
             "probabilities": prediction["probabilities"],
             "top_predictions": prediction.get("top_predictions", []),
             "entities": entities,
             "explanation": explanation,
             "clauses": clauses,
-            "risk_score": risk_score,
+            "risk_score": int(risk_score),
             "risk_level": risk_level,
             "insights": insights,
             "business_impact": business_impact,
@@ -239,7 +270,16 @@ def predict(request: PredictRequest):
             response["processing_time_ms"],
         )
 
-        save_prediction(text, response["label"], response["confidence"], response["risk_score"])
+        try:
+            save_prediction(
+                text,
+                response["label"],
+                response["confidence"],
+                response["risk_score"]
+            )
+        except Exception as db_error:
+            logger.exception("DB save failed but prediction succeeded: %s", db_error)
+
         return response
 
     except HTTPException:
@@ -263,7 +303,13 @@ def chat_endpoint(request: ChatRequest):
     try:
         tokenizer, model = load_qa_model()
 
-        inputs = tokenizer(request.question, request.context, return_tensors="pt")
+        inputs = tokenizer(
+            request.question,
+            request.context,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512
+        )
 
         with torch.no_grad():
             outputs = model(**inputs)
