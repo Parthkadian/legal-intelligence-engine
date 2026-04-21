@@ -1,9 +1,11 @@
-streamlit
-requests
+fastapi
+uvicorn
+transformers
+torch
 pandas
 numpy
-plotly
-PyMuPDF
+scikit-learn
+spacy
 pdfplumber
-fpdf2
+PyMuPDF
 python-docx
