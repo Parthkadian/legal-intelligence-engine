@@ -148,7 +148,6 @@ def predict(request: PredictRequest):
     if len(text) < 20:
         raise HTTPException(status_code=400, detail="Please enter a longer legal text.")
 
-    # Prevent Render crashes from huge extracted PDF text
     MAX_TEXT_LEN = 3000
     if len(text) > MAX_TEXT_LEN:
         logger.info("Input too large, truncating from %s to %s chars", len(text), MAX_TEXT_LEN)
@@ -210,37 +209,25 @@ def predict(request: PredictRequest):
             logger.info("Loading predictor")
             predictor = load_predictor()
 
-            logger.info("Running classification")
+            logger.info("Running classification only")
             prediction = predictor.predict(text)
 
-            logger.info("Running NER")
-            entities = extract_entities(text)
-
-            logger.info("Running explanation")
-            explanation = explain_text(text)
-
-            logger.info("Running clause detection")
-            clauses = detect_clauses(text)
-
-            logger.info("Computing risk score")
-            risk_score = compute_risk_score(clauses)
-            risk_level = get_risk_level(risk_score)
-
-            logger.info("Generating insights")
-            insights = generate_insights(text, clauses)
-
-            logger.info("Generating business impact")
-            business_impact = generate_business_impact(risk_score, clauses)
-
-            logger.info("Generating recommendations")
-            recommendations = generate_recommendations(risk_score, clauses)
-
-            logger.info("Generating executive summary")
-            executive_summary = generate_executive_summary(
-                prediction["label"],
-                risk_score,
-                clauses,
-            )
+            # TEMP SAFE MODE: heavy modules disabled for backend stabilisation
+            entities = []
+            explanation = []
+            clauses = {}
+            risk_score = 0
+            risk_level = "Low"
+            insights = ["Classification completed successfully."]
+            business_impact = ["Detailed risk pipeline temporarily disabled for stability."]
+            recommendations = ["Re-enable NER/explanation/risk modules step by step."]
+            executive_summary = {
+                "document_type": prediction["label"],
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "main_concern": "Classification only mode",
+                "action": "Backend stabilisation in progress",
+            }
 
         processing_time_ms = round((time.time() - start_time) * 1000, 2)
 
