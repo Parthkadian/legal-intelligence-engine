@@ -21,23 +21,9 @@ RUN python -m spacy download en_core_web_sm
 ENV HF_HOME=/app/.hf_cache
 ENV TRANSFORMERS_CACHE=/app/.hf_cache
 
-# Pre-download the legal classifier model at build time (avoids cold-start OOM on Railway)
-RUN python -c "
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-print('Downloading legal classifier...')
-AutoTokenizer.from_pretrained('briefme-io/legal_document_classifier')
-AutoModelForSequenceClassification.from_pretrained('briefme-io/legal_document_classifier')
-print('Done.')
-"
-
-# Pre-download the QA model at build time
-RUN python -c "
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
-print('Downloading QA model...')
-AutoTokenizer.from_pretrained('distilbert-base-cased-distilled-squad')
-AutoModelForQuestionAnswering.from_pretrained('distilbert-base-cased-distilled-squad')
-print('Done.')
-"
+# Copy the model download script and run it at build time
+COPY scripts/download_models.py /tmp/download_models.py
+RUN python /tmp/download_models.py
 
 # Copy local code to the container image
 COPY . .
