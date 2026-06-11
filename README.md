@@ -129,7 +129,7 @@ User Input → Identity Guard Check
            ↓
       Gradient Explainer (input × ∂loss/∂embed) → {token_saliency}
            ↓
-      Zero-shot NLI (BART-large-MNLI) → Clause Detection
+      Zero-shot NLI (DistilBERT-MNLI) → Clause Detection
            ↓ (fallback if confidence < 0.55)
       Keyword Matching → Final Clause Map
            ↓
@@ -178,7 +178,7 @@ Two-pass detection for **10 contractual clauses**:
 | Missing Force Majeure | +10 pts |
 | Arbitration Clause | +5 pts |
 
-**Pass 1:** `facebook/bart-large-mnli` zero-shot classification — each clause hypothesis scored independently (`multi_label=True`). Clauses scoring ≥ 0.55 are marked present.
+**Pass 1:** `typeform/distilbert-base-uncased-mnli` zero-shot classification — each clause hypothesis scored independently (`multi_label=True`). Clauses scoring ≥ 0.55 are marked present.
 
 **Pass 2:** Per-clause keyword fallback for uncertain results (< 0.55 confidence) or if the NLI model is unavailable. Prevents false positives like *"termination of my lunch break"* that fool pure keyword matching.
 

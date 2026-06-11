@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _ZS_CLASSIFIER = None
-_ZS_MODEL_NAME = "facebook/bart-large-mnli"
+_ZS_MODEL_NAME = "typeform/distilbert-base-uncased-mnli"
 _ZS_CONFIDENCE_THRESHOLD = 0.55   # below this we fall back to keywords
 
 

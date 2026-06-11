@@ -15,4 +15,9 @@ AutoTokenizer.from_pretrained("distilbert-base-cased-distilled-squad")
 AutoModelForQuestionAnswering.from_pretrained("distilbert-base-cased-distilled-squad")
 print("QA model downloaded.")
 
+print("Downloading zero-shot classification model...")
+AutoTokenizer.from_pretrained("typeform/distilbert-base-uncased-mnli")
+AutoModelForSequenceClassification.from_pretrained("typeform/distilbert-base-uncased-mnli")
+print("Zero-shot model downloaded.")
+
 print("All models ready.")

@@ -3,7 +3,6 @@ builder = "dockerfile"
 dockerfilePath = "api/Dockerfile.backend"
 
 [deploy]
-startCommand = "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
