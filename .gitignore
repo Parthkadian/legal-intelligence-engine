@@ -1,6 +1,7 @@
 # Virtual Environments
 venv/
 env/
+venv310/
 
 # Python Cache
 __pycache__/
@@ -20,5 +21,20 @@ predictions.db
 .idea/
 .vscode/
 
+# Large model files (too big for GitHub)
+models/bert_model/model.safetensors
+models/bert_model/tokenizer.json
+models/bert_model/tokenizer_config.json
+models/bert_model/config.json
+models/**/*.safetensors
+models/**/*.bin
+models/**/*.pt
+models/**/*.h5
+models/*.pkl
+models/*.joblib
+
+# Error logs
+error.txt
+fatal_error.txt
 
 

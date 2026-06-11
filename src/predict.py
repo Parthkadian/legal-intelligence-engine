@@ -1,7 +1,10 @@
+import logging
 import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from torch.nn.functional import softmax
+
+logger = logging.getLogger(__name__)
 
 LABEL_MAP = {
     0: "Employment Contract",
@@ -18,13 +21,13 @@ class LegalDocumentPredictor:
             "appster777/legal-doc-classifier"
         )
 
-        # 🔥 FORCE CPU (important for Render)
+        # Force CPU — safe default for environments without a GPU
         self.device = torch.device("cpu")
 
-        print("Loading tokenizer...")
+        logger.info("Loading tokenizer from %s", self.model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
-        print("Loading model...")
+        logger.info("Loading model from %s", self.model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             self.model_name,
             torch_dtype=torch.float32,
@@ -55,7 +58,7 @@ class LegalDocumentPredictor:
 
         self.labels = [self.id2label[i] for i in sorted(self.id2label.keys())]
 
-        print("✅ Model loaded successfully")
+        logger.info("Model loaded successfully. Labels: %s", self.labels)
 
     def predict(self, text: str) -> dict:
         try:
@@ -67,7 +70,7 @@ class LegalDocumentPredictor:
                     "probabilities": {}
                 }
 
-            # 🔥 LIMIT INPUT SIZE (CRITICAL)
+            # Limit input size to keep inference fast and memory-safe
             text = text[:1000]
 
             encoded = self.tokenizer(
@@ -75,7 +78,7 @@ class LegalDocumentPredictor:
                 return_tensors="pt",
                 truncation=True,
                 padding=True,
-                max_length=128   # 🔥 REDUCED
+                max_length=128
             )
 
             encoded = {k: v.to(self.device) for k, v in encoded.items()}
@@ -108,7 +111,7 @@ class LegalDocumentPredictor:
             }
 
         except Exception as e:
-            print("❌ Prediction error:", str(e))
+            logger.exception("Prediction error: %s", e)
             return {
                 "label": "Error",
                 "confidence": 0.0,
@@ -118,13 +121,13 @@ class LegalDocumentPredictor:
             }
 
 
-# 🔥 GLOBAL SINGLE INSTANCE (VERY IMPORTANT)
+# Global singleton — instantiated once, reused on every request
 _PREDICTOR = None
 
 def get_predictor():
     global _PREDICTOR
     if _PREDICTOR is None:
-        print("Initializing predictor...")
+        logger.info("Initializing predictor...")
         _PREDICTOR = LegalDocumentPredictor()
     return _PREDICTOR
 

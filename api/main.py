@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,7 +24,7 @@ from src.risk_detector import (
     generate_recommendations,
     generate_executive_summary,
 )
-from api.database import init_db, save_prediction, get_history
+from api.database import init_db, save_prediction, get_history, get_stats
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,10 +32,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger("legal-doc-api")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting AI Legal Risk Intelligence API...")
+    try:
+        init_db()
+        logger.info("Database initialized successfully.")
+        logger.info("Startup complete. Heavy models will load lazily on first request.")
+    except Exception as e:
+        logger.exception("Startup failed: %s", e)
+        raise
+    yield
+
+
 app = FastAPI(
     title="AI Legal Risk Intelligence API",
     version="3.0.0",
-    description="Explainable AI system for legal document classification and risk analysis"
+    description="Explainable AI system for legal document classification and risk analysis",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -107,16 +122,7 @@ def load_qa_model():
     return qa_tokenizer, qa_model
 
 
-@app.on_event("startup")
-def startup_event():
-    logger.info("Starting AI Legal Risk Intelligence API...")
-    try:
-        init_db()
-        logger.info("Database initialized successfully.")
-        logger.info("Startup complete. Heavy models will load lazily on first request.")
-    except Exception as e:
-        logger.exception("Startup failed: %s", e)
-        raise
+
 
 
 @app.get("/")
@@ -209,25 +215,25 @@ def predict(request: PredictRequest):
             logger.info("Loading predictor")
             predictor = load_predictor()
 
-            logger.info("Running classification only")
+            logger.info("Running classification")
             prediction = predictor.predict(text)
 
-            # TEMP SAFE MODE: heavy modules disabled for backend stabilisation
-            entities = []
-            explanation = []
-            clauses = {}
-            risk_score = 0
-            risk_level = "Low"
-            insights = ["Classification completed successfully."]
-            business_impact = ["Detailed risk pipeline temporarily disabled for stability."]
-            recommendations = ["Re-enable NER/explanation/risk modules step by step."]
-            executive_summary = {
-                "document_type": prediction["label"],
-                "risk_score": risk_score,
-                "risk_level": risk_level,
-                "main_concern": "Classification only mode",
-                "action": "Backend stabilisation in progress",
-            }
+            logger.info("Running NER entity extraction")
+            entities = extract_entities(text)
+
+            logger.info("Running explanation")
+            explanation = explain_text(text)
+
+            logger.info("Running risk analysis")
+            clauses = detect_clauses(text)
+            risk_score = compute_risk_score(clauses)
+            risk_level = get_risk_level(risk_score)
+            insights = generate_insights(clauses)
+            business_impact = generate_business_impact(risk_score, clauses)
+            recommendations = generate_recommendations(risk_score, clauses)
+            executive_summary = generate_executive_summary(
+                prediction["label"], risk_score, clauses
+            )
 
         processing_time_ms = round((time.time() - start_time) * 1000, 2)
 
@@ -283,6 +289,15 @@ def history_endpoint():
     except Exception as e:
         logger.exception("Fetch history failed: %s", e)
         raise HTTPException(status_code=500, detail=f"History fetch failed: {str(e)}")
+
+
+@app.get("/stats")
+def stats_endpoint():
+    try:
+        return get_stats()
+    except Exception as e:
+        logger.exception("Fetch stats failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Stats fetch failed: {str(e)}")
 
 
 @app.post("/chat", response_model=ChatResponse)

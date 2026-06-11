@@ -117,7 +117,7 @@ def regex_entities(text: str) -> list:
 
     patterns = [
         ("DATE", r"\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})\b"),
-        ("MONEY", r"\b(?:USD|INR|GBP|EUR|\$|₹|£|€)\s?\d+(?:,\d{3})*(?:\.\d+)?\s*(?:[Mm]illion|[Bbp]illion|[Kk]|[Tt]housand)?\b"),
+        ("MONEY", r"(?<![\w])(?:USD|INR|GBP|EUR|\$|₹|£|€)\s?\d+(?:,\d{3})*(?:\.\d+)?\s*(?:[Mm]illion|[Bbp]illion|[Kk]|[Tt]housand)?\b"),
         ("LAW", r"\b(?:Indian Contract Act|Companies Act|Data Protection Act|GDPR|Information Technology Act)\b"),
         ("ORG", r"\b[A-Z][A-Za-z0-9&,\- ]+(?:Ltd|Limited|LLP|LLC|Corporation|Corp|Company|Bank|University|Technologies|Systems|Solutions|Private Limited|Pvt Ltd)\b"),
         ("PERSON", r"\b(?:Mr|Mrs|Ms|Dr)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b"),
@@ -134,6 +134,36 @@ def regex_entities(text: str) -> list:
 
 
 def extract_entities(text: str) -> list:
+    """
+    Extract named entities from a legal document string.
+
+    Uses a two-pass strategy:
+      1. spaCy (``en_core_web_sm``) for context-aware NER, if the model is
+         available.  Results are filtered to the entity types defined in
+         ``ALLOWED_ENTITY_LABELS`` (PERSON, ORG, DATE, MONEY, GPE, LOC, LAW,
+         NORP, PRODUCT, EVENT).
+      2. Regex patterns as a reliable fallback (and supplement) for common
+         legal entities such as monetary amounts, dates, legislation names,
+         company suffixes, and titled persons (Mr/Mrs/Ms/Dr).
+
+    Both passes are deduplicated and merged.  Common noise tokens listed in
+    ``NOISY_ENTITY_TEXTS`` (e.g. "agreement", "party") are filtered out before
+    returning.
+
+    Args:
+        text: Raw legal document text to analyse.
+
+    Returns:
+        A list of up to 12 entity dicts, sorted by (label, text length desc),
+        each with the keys::
+
+            {
+                "text":  str,   # cleaned entity surface form
+                "label": str    # entity type, e.g. "ORG", "DATE", "MONEY"
+            }
+
+        Returns an empty list if ``text`` is empty or whitespace-only.
+    """
     if not text or not text.strip():
         return []
 

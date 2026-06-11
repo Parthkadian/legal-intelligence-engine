@@ -1,7 +1,10 @@
 from pathlib import Path
+import logging
 import re
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+logger = logging.getLogger(__name__)
 
 
 LEGAL_PRIORITY_TERMS = {
@@ -146,6 +149,72 @@ class LegalExplainer:
         except Exception:
             return self._fallback_keywords(text, top_k=top_k)
 
+    def explain_with_shap(self, text: str, top_k: int = 8) -> list:
+        """
+        SHAP PartitionExplainer-based token attribution.
+
+        Uses a HuggingFace text-classification pipeline built from the
+        already-loaded model/tokenizer so no second model load is needed.
+        Scores are the absolute SHAP values for the predicted class,
+        giving a stable, model-agnostic alternative to gradient saliency.
+
+        Falls back to the gradient-based explain() if SHAP is not installed
+        or if inference fails for any reason.
+        """
+        try:
+            import shap
+            from transformers import pipeline as hf_pipeline
+
+            # Reuse already-loaded model & tokenizer — no extra disk I/O
+            pipe = hf_pipeline(
+                "text-classification",
+                model=self.model,
+                tokenizer=self.tokenizer,
+                device=-1,   # always CPU; avoids device mismatch
+                top_k=None,  # return scores for every class
+            )
+
+            explainer = shap.Explainer(pipe)
+            shap_values = explainer([text])  # shape: (1, n_tokens, n_classes)
+
+            # Identify which class index was predicted
+            id2label = getattr(self.model.config, "id2label", {})
+            label2id = {v: k for k, v in id2label.items()}
+            top_result = pipe(text, top_k=1)[0][0]["label"]
+            class_idx = label2id.get(top_result, 0)
+
+            tokens = shap_values[0].data           # list of token strings
+            scores = shap_values[0].values[:, class_idx]  # per-token SHAP values
+
+            # Aggregate by (lowercased) word; keep the max absolute value
+            aggregated: dict[str, float] = {}
+            for token, score in zip(tokens, scores):
+                token = self._clean_token(token)
+                if not self._is_valid_token(token):
+                    continue
+                word = token.lower()
+                aggregated[word] = max(aggregated.get(word, 0.0), abs(float(score)))
+
+            ranked = sorted(
+                [{"word": w, "score": round(s, 4)} for w, s in aggregated.items()],
+                key=lambda x: x["score"],
+                reverse=True,
+            )
+
+            return ranked[:top_k] if ranked else self._fallback_keywords(text, top_k)
+
+        except ImportError:
+            logger.warning(
+                "shap is not installed — falling back to gradient explanation. "
+                "Install it with: pip install shap"
+            )
+            return self.explain(text, top_k=top_k)
+        except Exception as exc:
+            logger.warning(
+                "SHAP explanation failed (%s) — falling back to gradient method.", exc
+            )
+            return self.explain(text, top_k=top_k)
+
     def _postprocess_ranked_words(self, ranked: list, text: str, top_k: int) -> list:
         text_lower = text.lower()
         final_items = []
@@ -159,9 +228,6 @@ class LegalExplainer:
 
             if not self._is_valid_token(word):
                 continue
-
-            if word.endswith("ing") and len(word) > 10:
-                pass
 
             used.add(word)
             final_items.append(item)
@@ -243,4 +309,10 @@ def get_explainer():
 
 
 def explain_text(text: str, top_k: int = 8) -> list:
+    """Gradient-based token saliency explanation (default)."""
     return get_explainer().explain(text, top_k=top_k)
+
+
+def explain_with_shap(text: str, top_k: int = 8) -> list:
+    """SHAP PartitionExplainer-based token attribution (more stable alternative)."""
+    return get_explainer().explain_with_shap(text, top_k=top_k)
