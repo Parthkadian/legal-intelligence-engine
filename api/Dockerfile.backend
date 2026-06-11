@@ -21,9 +21,10 @@ RUN python -m spacy download en_core_web_sm
 ENV HF_HOME=/app/.hf_cache
 ENV TRANSFORMERS_CACHE=/app/.hf_cache
 
-# Copy the model download script and run it at build time
-COPY scripts/download_models.py /tmp/download_models.py
-RUN python /tmp/download_models.py
+# Download models at build time using huggingface-cli (highly memory-efficient, no PyTorch import needed)
+RUN huggingface-cli download briefme-io/legal_document_classifier
+RUN huggingface-cli download distilbert-base-cased-distilled-squad
+RUN huggingface-cli download typeform/distilbert-base-uncased-mnli
 
 # Copy local code to the container image
 COPY . .
