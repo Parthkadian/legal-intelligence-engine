@@ -50,7 +50,7 @@ st.set_page_config(
 )
 
 # ── Backend ───────────────────────────────────────────────────────────────────
-API_URL = os.getenv("API_URL", "https://legal-intelligence-engine.onrender.com")
+API_URL = os.getenv("API_URL", "https://legal-intelligence-engine-production.up.railway.app")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GLOBAL CSS — Dark luxury Scottish enterprise design

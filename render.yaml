@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: legal-intelligence-frontend
+    runtime: docker
+    dockerfilePath: ./ui/Dockerfile.frontend
+    dockerContext: .
+    port: 8501
+    envVars:
+      - key: API_URL
+        value: https://legal-intelligence-engine-production.up.railway.app
+    healthCheckPath: /
