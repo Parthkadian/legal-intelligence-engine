@@ -3,6 +3,7 @@ builder = "railpack"
 
 [build.environment]
 MISE_PYTHON_VERSION = "3.10.14"
+MISE_PYTHON_GITHUB_ATTESTATIONS = "false"
 
 [deploy]
 startCommand = "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
