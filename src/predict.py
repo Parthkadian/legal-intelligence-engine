@@ -18,7 +18,7 @@ class LegalDocumentPredictor:
     def __init__(self, model_name: str | None = None):
         self.model_name = model_name or os.getenv(
             "HF_MODEL_NAME",
-            "appster777/legal-doc-classifier"
+            "briefme-io/legal_document_classifier"
         )
 
         # Force CPU — safe default for environments without a GPU
