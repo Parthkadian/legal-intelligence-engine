@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir pip --upgrade
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all project files
+# Copy local code
 COPY . .
 
 # Expose port (Render injects $PORT at runtime)
