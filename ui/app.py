@@ -484,18 +484,24 @@ def compliance_status_icon(status: str) -> str:
 # API HELPERS (preserved from original)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def check_api_health(url):
-    try:
-        r = requests.get(f"{url}/health", timeout=20)
-        r.raise_for_status()
-        return True, r.json()
-    except Exception as e:
-        return False, str(e)
+def check_api_health(url, retries=2, timeout=60):
+    """Check backend health with retries to handle Railway cold starts (30-60s wake time)."""
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            r = requests.get(f"{url}/health", timeout=timeout)
+            r.raise_for_status()
+            return True, r.json()
+        except Exception as e:
+            last_err = str(e)
+            if attempt < retries:
+                time.sleep(5)
+    return False, last_err
 
 
 def warm_backend(url):
     try:
-        requests.get(f"{url}/health", timeout=20)
+        requests.get(f"{url}/health", timeout=60)
     except Exception:
         pass
 
@@ -5506,9 +5512,15 @@ with st.sidebar:
 
     # API Status
     section_title("System Status", "🔌")
-    api_ok, _ = check_api_health(API_URL)
-    status_color = "#27AE60" if api_ok else "#E74C3C"
-    status_label = "Online" if api_ok else "Offline"
+    api_ok, api_err = check_api_health(API_URL)
+    if api_ok:
+        status_color = "#27AE60"
+        status_label = "Online"
+    else:
+        # Check if it's a timeout — backend may still be warming up
+        is_timeout = api_err and ("timeout" in str(api_err).lower() or "connection" in str(api_err).lower())
+        status_color = "#F39C12" if is_timeout else "#E74C3C"
+        status_label = "Warming Up…" if is_timeout else "Offline"
     h(f"""
     <div style="display:flex;align-items:center;justify-content:space-between;
     background:#0D1F30;border:1px solid #1E3448;border-radius:7px;
@@ -5520,6 +5532,8 @@ with st.sidebar:
             {status_label}
         </span>
     </div>""")
+    if not api_ok:
+        st.caption("🕐 Backend may be cold-starting. Refresh in 30s if Offline.")
 
     # Trusted by branding
     h("""
