@@ -484,24 +484,32 @@ def compliance_status_icon(status: str) -> str:
 # API HELPERS (preserved from original)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def check_api_health(url, retries=2, timeout=60):
-    """Check backend health with retries to handle Railway cold starts (30-60s wake time)."""
-    last_err = None
-    for attempt in range(1, retries + 1):
-        try:
-            r = requests.get(f"{url}/health", timeout=timeout)
-            r.raise_for_status()
-            return True, r.json()
-        except Exception as e:
-            last_err = str(e)
-            if attempt < retries:
-                time.sleep(5)
-    return False, last_err
+def check_api_health(url, timeout=5):
+    """Non-blocking health check for sidebar display (short timeout, single attempt).
+    Returns (True, data) on success or (False, error_str) on failure.
+    The result is cached in session_state for 30s to avoid blocking every rerender.
+    """
+    now = time.time()
+    cache_key = "_api_health_cache"
+    ts_key = "_api_health_ts"
+    # Return cached result if it's less than 30 seconds old
+    if cache_key in st.session_state and ts_key in st.session_state:
+        if now - st.session_state[ts_key] < 30:
+            return st.session_state[cache_key]
+    try:
+        r = requests.get(f"{url}/health", timeout=timeout)
+        r.raise_for_status()
+        result = (True, r.json())
+    except Exception as e:
+        result = (False, str(e))
+    st.session_state[cache_key] = result
+    st.session_state[ts_key] = now
+    return result
 
 
 def warm_backend(url):
     try:
-        requests.get(f"{url}/health", timeout=60)
+        requests.get(f"{url}/health", timeout=90)
     except Exception:
         pass
 
@@ -5516,24 +5524,32 @@ with st.sidebar:
     if api_ok:
         status_color = "#27AE60"
         status_label = "Online"
+        status_dot_anim = ""
     else:
-        # Check if it's a timeout — backend may still be warming up
-        is_timeout = api_err and ("timeout" in str(api_err).lower() or "connection" in str(api_err).lower())
-        status_color = "#F39C12" if is_timeout else "#E74C3C"
-        status_label = "Warming Up…" if is_timeout else "Offline"
+        is_timeout = api_err and ("timeout" in str(api_err).lower() or "timed out" in str(api_err).lower() or "connection" in str(api_err).lower())
+        status_color = "#F39C12"
+        status_label = "Connecting…"
+        status_dot_anim = "animation:pulse 1.2s infinite;"
     h(f"""
+    <style>@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:0.3}}}}</style>
     <div style="display:flex;align-items:center;justify-content:space-between;
     background:#0D1F30;border:1px solid #1E3448;border-radius:7px;
-    padding:0.55rem 0.8rem;font-size:0.8rem;margin-bottom:0.9rem;">
+    padding:0.55rem 0.8rem;font-size:0.8rem;margin-bottom:0.6rem;">
         <span style="color:#607D99;">API Server</span>
         <span style="display:flex;align-items:center;gap:0.4rem;color:{status_color};font-weight:600;">
             <span style="width:7px;height:7px;background:{status_color};border-radius:50%;
-            display:inline-block;box-shadow:0 0 5px {status_color};"></span>
+            display:inline-block;box-shadow:0 0 5px {status_color};{status_dot_anim}"></span>
             {status_label}
         </span>
     </div>""")
     if not api_ok:
-        st.caption("🕐 Backend may be cold-starting. Refresh in 30s if Offline.")
+        st.caption("⚡ Railway backend is starting up (free tier cold start ~60s).")
+        if st.button("🔄 Retry Connection", key="retry_api_btn", use_container_width=True):
+            # Clear cache and force re-check
+            for k in ["_api_health_cache", "_api_health_ts"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            st.rerun()
 
     # Trusted by branding
     h("""
